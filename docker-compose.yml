@@ -4,10 +4,6 @@ services:
     container_name: any-sync-bundle
     restart: unless-stopped
     environment:
-      # Prefer setting TAILSCALE_IP in /opt/anytype-vault/env/compose.env
-      # (or exported in the systemd unit) to the VM's Tailscale IP.
-      #
-      # If unsure: `tailscale ip -4` on the VM.
-      TAILSCALE_IP: ${TAILSCALE_IP:?set TAILSCALE_IP to the VM tailscale IPv4}
+      ANY_SYNC_BUNDLE_INIT_EXTERNAL_ADDRS: ${TAILSCALE_IP:?set TAILSCALE_IP to the VM tailscale IPv4}
     volumes:
       - /opt/anytype-vault/data:/data
