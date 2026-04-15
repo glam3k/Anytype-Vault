@@ -10,4 +10,4 @@ services:
       # If unsure: `tailscale ip -4` on the VM.
       TAILSCALE_IP: ${TAILSCALE_IP:?set TAILSCALE_IP to the VM tailscale IPv4}
     volumes:
-      - ./data:/data
+      - /opt/anytype-vault/data:/data
