@@ -1,0 +1,12 @@
+.DS_Store
+
+# Anytype sync persistent data (stored under /opt/anytype-vault/data on VM)
+data/
+
+# Local overrides/secrets
+.env
+*.env
+!env/*.example
+
+# Editor
+.vscode/

@@ -1,0 +1,15 @@
+[Unit]
+Description=Anytype Vault Backup (Restic to B2)
+Wants=network-online.target tailscaled.service
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+Environment=ENV_FILE=/opt/anytype-vault/env/backup.env
+Environment=DATA_DIR=/opt/anytype-vault/data
+ExecStart=/opt/anytype-vault/bin/backup.sh
+
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
