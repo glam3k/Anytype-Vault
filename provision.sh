@@ -9,6 +9,18 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="/opt/anytype-vault"
 
+source /etc/os-release
+OS_ID="${ID}"
+CODENAME="${VERSION_CODENAME:-}"
+ARCH="$(dpkg --print-architecture)"
+
+if [[ -z "${CODENAME}" ]]; then
+  echo "Could not determine VERSION_CODENAME from /etc/os-release" >&2
+  exit 1
+fi
+
+echo "Detected OS: ${OS_ID} ${CODENAME} (${ARCH})"
+
 apt-get update
 apt-get install -y --no-install-recommends \
   ca-certificates \
@@ -16,31 +28,50 @@ apt-get install -y --no-install-recommends \
   gnupg \
   lsb-release \
   sudo \
-  systemd \
   unzip
 
 install -d -m 0755 /etc/apt/keyrings
 
-# Docker (official repo)
-if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
-  curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  chmod a+r /etc/apt/keyrings/docker.gpg
-fi
+case "${OS_ID}" in
+  debian)
+    DOCKER_BASE_URL="https://download.docker.com/linux/debian"
+    TAILSCALE_CHANNEL_PATH="debian/${CODENAME}"
+    ;;
+  ubuntu)
+    DOCKER_BASE_URL="https://download.docker.com/linux/ubuntu"
+    TAILSCALE_CHANNEL_PATH="ubuntu/${CODENAME}"
+    ;;
+  *)
+    echo "Unsupported OS: ${OS_ID}. This script supports Debian and Ubuntu." >&2
+    exit 2
+    ;;
+esac
 
-ARCH="$(dpkg --print-architecture)"
-CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
-echo \
-  "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian ${CODENAME} stable" \
-  > /etc/apt/sources.list.d/docker.list
+# Clean up any stale repo files from previous bad runs
+rm -f /etc/apt/sources.list.d/docker.list
+rm -f /etc/apt/sources.list.d/tailscale.list
 
-# Tailscale (official repo)
-if [[ ! -f /etc/apt/keyrings/tailscale.gpg ]]; then
-  curl -fsSL https://pkgs.tailscale.com/stable/debian/${CODENAME}.noarmor.gpg \
-    | gpg --dearmor -o /etc/apt/keyrings/tailscale.gpg
-  chmod a+r /etc/apt/keyrings/tailscale.gpg
-fi
-echo "deb [signed-by=/etc/apt/keyrings/tailscale.gpg] https://pkgs.tailscale.com/stable/debian ${CODENAME} main" \
-  > /etc/apt/sources.list.d/tailscale.list
+# --------------------------
+# Docker repo
+# --------------------------
+curl -fsSL "${DOCKER_BASE_URL}/gpg" \
+  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+cat > /etc/apt/sources.list.d/docker.list <<EOF
+deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.gpg] ${DOCKER_BASE_URL} ${CODENAME} stable
+EOF
+
+# --------------------------
+# Tailscale repo
+# Use vendor-provided key + vendor-provided .list file
+# --------------------------
+curl -fsSL "https://pkgs.tailscale.com/stable/${TAILSCALE_CHANNEL_PATH}.noarmor.gpg" \
+  -o /etc/apt/keyrings/tailscale.gpg
+chmod a+r /etc/apt/keyrings/tailscale.gpg
+
+curl -fsSL "https://pkgs.tailscale.com/stable/${TAILSCALE_CHANNEL_PATH}.tailscale-keyring.list" \
+  -o /etc/apt/sources.list.d/tailscale.list
 
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -54,6 +85,11 @@ apt-get install -y --no-install-recommends \
 
 systemctl enable --now docker
 systemctl enable --now tailscaled
+
+# Optional: let the invoking user talk to Docker without sudo after relogin
+if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  usermod -aG docker "${SUDO_USER}" || true
+fi
 
 # /opt/anytype-vault layout
 install -d -m 0750 -o root -g docker "${PREFIX}"
@@ -77,8 +113,9 @@ echo "Provisioning complete."
 echo
 echo "Next steps:"
 echo "  1) Authenticate Tailscale: sudo tailscale up"
-echo "  2) Create ${PREFIX}/env/compose.env from env/compose.env.example (set TAILSCALE_IP)"
-echo "  3) Create ${PREFIX}/env/backup.env from env/backup.env.example (B2 + restic)"
-echo "  4) Enable services:"
+echo "  2) Re-login or run: newgrp docker"
+echo "  3) Create ${PREFIX}/env/compose.env from env/compose.env.example"
+echo "  4) Create ${PREFIX}/env/backup.env from env/backup.env.example"
+echo "  5) Enable services:"
 echo "       sudo systemctl enable --now anytype-vault.service"
 echo "       sudo systemctl enable --now anytype-vault-backup.timer"
