@@ -2,6 +2,12 @@
 
 Self-hosted “Identity Vault” for Anytype sync using `any-sync-bundle`, backed up with Restic to Backblaze B2, reachable only over Tailscale.
 
+### WSL2 + LUKS Debian VM (“L2”) setup
+
+If you’re hosting this inside **WSL2** using a nested **Debian 12** VM with **LUKS-encrypted LVM**, follow:
+
+- `docs/wsl2-debian12-luks-vm.md`
+
 ### Repository layout
 
 - **`/opt/anytype-vault` on the VM**
